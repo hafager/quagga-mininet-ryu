@@ -26,36 +26,7 @@ class SdnIpHost(Host):
 
         self.cmd('ip route add default via %s' % self.route)
 
-class Router(Host):
-    def __init__(self, name, quaggaConfFile, zebraConfFile, intfDict, *args, **kwargs):
-        Host.__init__(self, name, *args, **kwargs)
 
-        self.quaggaConfFile = quaggaConfFile
-        self.zebraConfFile = zebraConfFile
-        self.intfDict = intfDict
-
-    def config(self, **kwargs):
-        Host.config(self, **kwargs)
-        self.cmd('sysctl net.ipv4.ip_forward=1')
-
-        for intf, attrs in self.intfDict.items():
-            self.cmd('ip addr flush dev %s' % intf)
-            if 'mac' in attrs:
-                self.cmd('ip link set %s down' % intf)
-                self.cmd('ip link set %s address %s' % (intf, attrs['mac']))
-                self.cmd('ip link set %s up ' % intf)
-            for addr in attrs['ipAddrs']:
-                self.cmd('ip addr add %s dev %s' % (addr, intf))
-
-        self.cmd('/usr/lib/quagga/zebra -d -f %s -z %s/zebra%s.api -i %s/zebra%s.pid' % (self.zebraConfFile, QUAGGA_RUN_DIR, self.name, QUAGGA_RUN_DIR, self.name))
-        self.cmd('/usr/lib/quagga/bgpd -d -f %s -z %s/zebra%s.api -i %s/bgpd%s.pid' % (self.quaggaConfFile, QUAGGA_RUN_DIR, self.name, QUAGGA_RUN_DIR, self.name))
-        self.cmd
-
-
-    def terminate(self):
-        self.cmd("ps ax | egrep 'bgpd%s.pid|zebra%s.pid' | awk '{print $1}' | xargs kill" % (self.name, self.name))
-
-        Host.terminate(self)
 
 class OSPFHost(Host):
     def __init__(self, name, ip, route, *args, **kwargs):
@@ -109,6 +80,7 @@ class SdnIpTopo( Topo ):
 
         zebraConf = '%s/zebra.conf' % CONFIG_DIR
 
+        # ------------ Network 1 -----------------
         r1name = 'r1'
         r1eth0 = { 'mac' : '00:00:00:00:01:01',
                  'ipAddrs' : ['10.0.1.254/24'] }
@@ -154,6 +126,7 @@ class SdnIpTopo( Topo ):
         r3 = self.addHost(r3name, cls=OSPFRouter, quaggaConfFile=r3quaggaConf, zebraConfFile=zebraConf, intfDict=r3intfs)
         #h1 = self.addHost('h1', cls=OSPFHost, ip='192.168.1.1/24', route='192.168.1.254')
 
+
         self.addLink(r1, s1)
         self.addLink(r2, s2)
         self.addLink(r3, s3)
@@ -161,6 +134,66 @@ class SdnIpTopo( Topo ):
         self.addLink(r1, r2)
         self.addLink(r1, r3)
         self.addLink(r2, r3)
+
+        # ------------ Network 2 -------------
+        # Router 4
+        r4name = 'r4'
+        r4eth0 = { 'mac' : '00:00:00:00:04:01',
+                 'ipAddrs' : ['10.0.1.253/24'] }
+        r4eth1 = { 'mac' : '00:00:00:00:04:02',
+                 'ipAddrs' : ['10.2.101.1/24'] }
+        r4eth2 = { 'mac' : '00:00:00:00:04:03',
+                 'ipAddrs' : ['10.2.103.2/24'] }
+        r4intfs = {
+            'r4-eth0': r4eth0,
+            'r4-eth1': r4eth1,
+            'r4-eth2': r4eth2
+        }
+        r4quaggaConf = '%s/quagga4.conf' % (CONFIG_DIR)
+        r4 = self.addHost(r4name, cls=OSPFRouter, quaggaConfFile=r4quaggaConf, zebraConfFile=zebraConf, intfDict=r4intfs)
+
+        # Router 5
+        r5name = 'r5'
+        r5eth0 = { 'mac' : '00:00:00:00:05:01',
+                 'ipAddrs' : ['10.0.2.253/24'] }
+        r5eth1 = { 'mac' : '00:00:00:00:05:02',
+                 'ipAddrs' : ['10.2.101.2/24'] }
+        r5eth2 = { 'mac' : '00:00:00:00:05:03',
+                 'ipAddrs' : ['10.2.102.2/24'] }
+        r5intfs = {
+            'r5-eth0': r5eth0,
+            'r5-eth1': r5eth1,
+            'r5-eth2': r5eth2
+        }
+        r5quaggaConf = '%s/quagga5.conf' % (CONFIG_DIR)
+        r5 = self.addHost(r5name, cls=OSPFRouter, quaggaConfFile=r5quaggaConf, zebraConfFile=zebraConf, intfDict=r5intfs)
+
+        # Router 6
+        r6name = 'r6'
+        r6eth0 = { 'mac' : '00:00:00:00:06:01',
+                 'ipAddrs' : ['10.0.3.253/24'] }
+        r6eth1 = { 'mac' : '00:00:00:00:06:02',
+                 'ipAddrs' : ['10.2.103.1/24'] }
+        r6eth2 = { 'mac' : '00:00:00:00:06:03',
+                 'ipAddrs' : ['10.2.102.1/24'] }
+        r6intfs = {
+            'r6-eth0': r6eth0,
+            'r6-eth1': r6eth1,
+            'r6-eth2': r6eth2
+        }
+        r6quaggaConf = '%s/quagga6.conf' % (CONFIG_DIR)
+        r6 = self.addHost(r6name, cls=OSPFRouter, quaggaConfFile=r6quaggaConf, zebraConfFile=zebraConf, intfDict=r6intfs)
+
+        self.addLink(r4, s1)
+        self.addLink(r5, s2)
+        self.addLink(r6, s3)
+
+        self.addLink(r4, r5)
+        #self.addLink(r4, r6)
+        self.addLink(r5, r6)
+
+        h1 = self.addHost('h1', cls=OSPFHost, ip='10.0.1.1', route='10.0.1.254')
+        self.addLink(h1, s1)
 
 
 topos = { 'sdnip' : SdnIpTopo }

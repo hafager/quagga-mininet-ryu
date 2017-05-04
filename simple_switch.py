@@ -5,6 +5,10 @@ from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
+from ryu.lib.packet import ospf
+from ryu.lib.packet import bgp
+
+#from ryu.services.protocols.zebra
 
 from ryu.topology import event, switches
 from ryu.topology.api import get_switch, get_link
@@ -63,7 +67,15 @@ class MasterSwitch(app_manager.RyuApp):
         # get the received port number from packet_in message
         in_port = msg.match['in_port']
 
-        self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
+        #self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
+
+        for i in pkt.protocols:
+            print i
+            try:
+                if "OSPF" in i.protocol_name:
+                    print i
+            except:
+                pass
 
         #learn a mac address to avoid FLOOD next time.
         self.mac_to_port[dpid][src] = in_port

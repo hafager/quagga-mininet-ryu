@@ -5,6 +5,7 @@ from mininet.net import Mininet
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info, debug
 from mininet.node import Host, RemoteController
+from mininet.node import Controller, OVSController
 from mininet.node import OVSKernelSwitch
 
 QUAGGA_DIR = '/usr/lib/quagga'
@@ -107,18 +108,20 @@ class SdnIpTopo( Topo ):
         s2 = self.addSwitch('s2', dpid='00000000000000a2', cls=OVSKernelSwitch, protocols='OpenFlow13')
         s3 = self.addSwitch('s3', dpid='00000000000000a3', cls=OVSKernelSwitch, protocols='OpenFlow13')
 
+        # c0 = self.addController('c0', controller=RemoteController, port=6633)
+        # c1 = self.addController('c1', controller=RemoteController, port=6643)
+
         zebraConf = '%s/zebra.conf' % CONFIG_DIR
 
         r1name = 'r1'
         r1eth0 = { 'mac' : '00:00:00:00:01:01',
                  'ipAddrs' : ['10.1.1.254/24'] }
         r1eth1 = { 'mac' : '00:00:00:00:01:02',
-                 'ipAddrs' : ['10.1.101.1/24'] }
-        r1eth2 = { 'mac' : '00:00:00:00:01:03',
-                 'ipAddrs' : ['10.1.103.2/24'] }
+                 'ipAddrs' : ['10.1.100.1/24'] }
+        # r1eth2 = { 'mac' : '00:00:00:00:01:03',
+        #          'ipAddrs' : ['10.1.103.2/24'] }
         r1intfs = { 'r1-eth0' : r1eth0,
-                  'r1-eth1' : r1eth1,
-                  'r1-eth2' : r1eth2 }
+                  'r1-eth1' : r1eth1}
         r1quaggaConf = '%s/quagga1.conf' % (CONFIG_DIR)
 
         r1 = self.addHost(r1name, cls=OSPFRouter, quaggaConfFile=r1quaggaConf, zebraConfFile=zebraConf, intfDict=r1intfs)
@@ -128,12 +131,11 @@ class SdnIpTopo( Topo ):
         r2eth0 = { 'mac' : '00:00:00:00:02:01',
                  'ipAddrs' : ['10.1.2.254/24'] }
         r2eth1 = { 'mac' : '00:00:00:00:02:02',
-                 'ipAddrs' : ['10.1.101.2/24'] }
-        r2eth2 = { 'mac' : '00:00:00:00:02:03',
-                 'ipAddrs' : ['10.1.102.2/24'] }
+                 'ipAddrs' : ['10.1.100.2/24'] }
+        # r2eth2 = { 'mac' : '00:00:00:00:02:03',
+        #          'ipAddrs' : ['10.1.102.2/24'] }
         r2intfs = { 'r2-eth0' : r2eth0,
-                  'r2-eth1' : r2eth1,
-                  'r2-eth2' : r2eth2 }
+                  'r2-eth1' : r2eth1}
         r2quaggaConf = '%s/quagga2.conf' % (CONFIG_DIR)
 
         r2 = self.addHost(r2name, cls=OSPFRouter, quaggaConfFile=r2quaggaConf, zebraConfFile=zebraConf, intfDict=r2intfs)
@@ -143,24 +145,36 @@ class SdnIpTopo( Topo ):
         r3eth0 = { 'mac' : '00:00:00:00:03:01',
                  'ipAddrs' : ['10.1.3.254/24'] }
         r3eth1 = { 'mac' : '00:00:00:00:03:02',
-                 'ipAddrs' : ['10.1.103.1/24'] }
-        r3eth2 = { 'mac' : '00:00:00:00:03:03',
-                 'ipAddrs' : ['10.1.102.1/24'] }
+                 'ipAddrs' : ['10.1.100.3/24'] }
+        # r3eth2 = { 'mac' : '00:00:00:00:03:03',
+        #          'ipAddrs' : ['10.1.102.1/24'] }
         r3intfs = { 'r3-eth0' : r3eth0,
-                  'r3-eth1' : r3eth1,
-                  'r3-eth2' : r3eth2 }
+                  'r3-eth1' : r3eth1}
         r3quaggaConf = '%s/quagga3.conf' % (CONFIG_DIR)
 
         r3 = self.addHost(r3name, cls=OSPFRouter, quaggaConfFile=r3quaggaConf, zebraConfFile=zebraConf, intfDict=r3intfs)
         #h1 = self.addHost('h1', cls=OSPFHost, ip='192.168.1.1/24', route='192.168.1.254')
 
+        s4 = self.addSwitch('s4', dpid='00000000000000a4', cls=OVSKernelSwitch, protocols='OpenFlow13')
+
         self.addLink(r1, s1)
         self.addLink(r2, s2)
         self.addLink(r3, s3)
 
-        self.addLink(r1, r2)
-        self.addLink(r1, r3)
-        self.addLink(r2, r3)
+        self.addLink(r1, s4)
+        self.addLink(r2, s4)
+        self.addLink(r3, s4)
+
+        self.RemoteController()
+
+        # print self.
+
+        # self.get('s1').start([c0])
+        # self.get('s2').start([c0])
+        # self.get('s3').start([c0])
+        #
+        # self.get('s4').start([c0])
+
 
 
 topos = { 'sdnip' : SdnIpTopo }
@@ -170,8 +184,13 @@ if __name__ == '__main__':
     topo = SdnIpTopo()
 
     net = Mininet(topo=topo, controller=RemoteController)
+    print "-----------------------------------------------"
+    print net.controllers
+    net.addController('c1', controller=RemoteController, port=6699)
+    print net.controllers
 
     net.start()
+
 
     CLI(net)
 

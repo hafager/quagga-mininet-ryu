@@ -123,7 +123,9 @@ class OSPFTopo( Topo ):
 
         # Add 1 host for testing purposes
         h1 = self.addHost('h1', cls=OSPFHost, ip='10.0.3.1', route='10.0.3.254')
+        h2 = self.addHost('h2', cls=OSPFHost, ip='10.0.2.1', route='10.0.2.254')
         self.addLink(h1, s3)
+        self.addLink(h2, s2)
 
 
 

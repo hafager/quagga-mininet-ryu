@@ -10,62 +10,97 @@ SHOW_IP_OSPF_ROUTE = "show ip ospf route"
 SHOW_IP_OSPF_DATABASE_ROUTER = "show ip ospf database router %s"
 SHOW_IP_OSPF_DATA_NETWORK = "show ip ospf data network"
 
-OSPF_AREA = "0.0.0.3"
-HOST = "10.0.3.254"
+OSPF_AREA = "0.0.0.%s"
+HOST = "10.0.%s.254"
 PORT = 2604
-user = "r3"
+user = "r%s"
 password = "zebra"
 
 
 class ospf_api:
 
-    def __init__(self):
-        self.DAEMON = "ospfd"
-        self.router_id = self.__fetch_router_id()
-        self.attached_routers = {}
+    def __init__(self, platform_id):
+
+        self.generate_config(platform_id)
+
+
+        self.router = self._fetch_router_id()
+        self.router["Attached Routers"] = {}
 
         self.fetch_connected_routers()
         self.fetch_router_routes()
+        # self.test()
 
+    def generate_config(self, platform_id):
+        self.OSPF_AREA = "0.0.0.%s" % paltform_id
+        self.HOST = "10.0.%s.254" % paltform_id
+        self.PORT = 2604
+        self.DAEMON = "ospfd"
+        self.user = "r%s" % platform_id
+        self.password = "zebra"
+
+
+    def test(self):
+        return self.list_attached_routers()
+
+    def update(self):
+        #self.router_id = self._fetch_router_id()
+        self.fetch_connected_routers()
+        self.fetch_router_routes()
 
     def list_attached_routers(self):
-        return self.attached_routers.keys()
+        temp = {}
+        for router in self.router["Attached Routers"]:
+            if self.router["Attached Routers"][router]["Connected"]:
+                temp[router] = self.router["Attached Routers"][router]
+        return self.router["Attached Routers"]
 
-    def __fetch_router_id(self):
-        output = self.__vtysh_command(SHOW_IP_OSPF)
-        parsed_output = self.__parse_ospf(output)
+    def _fetch_router_id(self):
+        output = self._vtysh_command(SHOW_IP_OSPF)
+        parsed_output = self._parse_ospf(output)
 
-        return parsed_output["Router ID"]
+        return parsed_output
 
     def fetch_connected_routers(self):
-        output = self.__vtysh_command(SHOW_IP_OSPF_DATA_NETWORK)
-        parsed_output = self.__parse_ospf_data_network(output)
+        output = self._vtysh_command(SHOW_IP_OSPF_DATA_NETWORK)
+        parsed_output = self._parse_ospf_data_network(output)
 
+        # Add new routers
         for router in parsed_output['Attached Router']:
-            self.attached_routers[router] = {}
-        #return parsed_output['Attached Router']
+            # New router
+            if router not in self.router["Attached Routers"]:
+                self.router["Attached Routers"][router] = {"Connected": True}
+                print "New router: ", router
+            # Known router which reconencted
+            elif router in self.router["Attached Routers"] and not self.router["Attached Routers"][router]["Connected"]:
+                self.router["Attached Routers"][router]["Connected"] = True
+                print "Router reconnected", router
+
+        # Remove old routers
+        for router in self.router["Attached Routers"]:
+            if router not in parsed_output['Attached Router'] and self.router["Attached Routers"][router]["Connected"]:
+                self.router["Attached Routers"][router]["Connected"] = False
+                print "Router disconnected: ", router
 
     def fetch_router_routes(self):
         routers = []
-        for router in self.attached_routers.keys():
-            output = self.__vtysh_command(SHOW_IP_OSPF_DATABASE_ROUTER % router)
+        for router in self.router["Attached Routers"].keys():
+            if self.router["Attached Routers"][router]["Connected"]:
+                output = self._vtysh_command(SHOW_IP_OSPF_DATABASE_ROUTER % router)
 
-            parsed_output = self.__parse_ospf_route(output)
-            routers.append(parsed_output)
-        print len(routers)
+                parsed_output = self._parse_ospf_route(output)
+                routers.append(parsed_output)
 
-        #return parsed_output
-
-    def __vtysh_command(self, command):
+    def _vtysh_command(self, command):
         a = subprocess.Popen(["sudo", "vtysh", "-d", self.DAEMON, "-c", command], stdout=subprocess.PIPE)
         output = a.stdout.read()
         return output
 
-    def __telnet_command(self, command):
-        tn = telnetlib.Telnet(HOST, PORT)
+    def _telnet_command(self, command):
+        tn = telnetlib.Telnet(self.HOST, self.PORT)
 
         tn.read_until("Password: ")
-        tn.write(password + '\n')
+        tn.write(self.password + '\n')
 
         tn.write(command)
 
@@ -75,18 +110,16 @@ class ospf_api:
         return output
 
 
-    def __parse_ospf_data_network(self, data):
-        # print data
+    def _parse_ospf_data_network(self, data):
         parsed_data = {"Attached Router": []}
         for line in data.splitlines():
-            # print line
             if line and ':' in line:
                 line = line.split(':')
                 line = [x.strip() for x in line]
                 if len(line) == 2:
                     if line[0] == "Attached Router":
 
-                        if not line[1] == self.router_id:
+                        if not line[1] == self.router["Router ID"]:
                             temp_attached = parsed_data["Attached Router"]
                             temp_attached.append(line[1])
                             parsed_data["Attached Router"] = temp_attached
@@ -94,10 +127,9 @@ class ospf_api:
                         parsed_data[line[0]] = line[1]
                 elif len(line) > 2:
                     parsed_data[line[0]] = line[1:]
-
         return parsed_data
 
-    def __parse_ospf_route(self, data):
+    def _parse_ospf_route(self, data):
         parsed_data = {}
         temp_data = [x.strip() for x in data.splitlines() if x]
 
@@ -120,7 +152,7 @@ class ospf_api:
                         parsed_data["Links"][number_of_links][line[0]] = line[1].strip()
         return parsed_data
 
-    def __parse_ospf(self, data):
+    def _parse_ospf(self, data):
         temp = data.split('\n')
         parsed_data = {"Router ID": temp[0].split()[-1]}
         return parsed_data
@@ -131,5 +163,5 @@ if __name__ == '__main__':
 
     ospf = ospf_api()
 
-    print ospf.router_id
-    print ospf.list_attached_routers()
+    #print ospf.router_id
+    #print ospf.list_attached_routers()

@@ -62,7 +62,6 @@ class OSPFRouter(Host):
         self.cmd("ps ax | egrep 'ospfd%s.pid|zebra%s.pid' | awk '{print$1}' | xargs kill" % (self.name, self.name))
         Host.terminate(self)
 
-
 class OSPFTopo( Topo ):
     "SDN-IP tutorial topology"
 
@@ -70,6 +69,7 @@ class OSPFTopo( Topo ):
         s1 = self.addSwitch('s1', dpid='00000000000000a1', cls=OSPFSwitch, protocols='OpenFlow13')
         s2 = self.addSwitch('s2', dpid='00000000000000a2', cls=OSPFSwitch, protocols='OpenFlow13')
         s3 = self.addSwitch('s3', dpid='00000000000000a3', cls=OSPFSwitch, protocols='OpenFlow13')
+        s4 = self.addSwitch('s4', dpid='00000000000000a4', cls=OSPFSwitch, protocols='OpenFlow13')
 
         zebraConf = '%s/zebra.conf' % CONFIG_DIR
 
@@ -82,7 +82,6 @@ class OSPFTopo( Topo ):
         r1intfs = { 'r1-eth0' : r1eth0,
                   'r1-eth1' : r1eth1}
         r1quaggaConf = '%s/quagga1.conf' % (CONFIG_DIR)
-
         r1 = self.addHost(r1name, cls=OSPFRouter, quaggaConfFile=r1quaggaConf, zebraConfFile=zebraConf, intfDict=r1intfs)
 
         # Router 2
@@ -94,7 +93,6 @@ class OSPFTopo( Topo ):
         r2intfs = { 'r2-eth0' : r2eth0,
                   'r2-eth1' : r2eth1}
         r2quaggaConf = '%s/quagga2.conf' % (CONFIG_DIR)
-
         r2 = self.addHost(r2name, cls=OSPFRouter, quaggaConfFile=r2quaggaConf, zebraConfFile=zebraConf, intfDict=r2intfs)
 
         # Router 3
@@ -106,10 +104,7 @@ class OSPFTopo( Topo ):
         r3intfs = { 'r3-eth0' : r3eth0,
                   'r3-eth1' : r3eth1}
         r3quaggaConf = '%s/quagga3.conf' % (CONFIG_DIR)
-
         r3 = self.addHost(r3name, cls=OSPFRouter, quaggaConfFile=r3quaggaConf, zebraConfFile=zebraConf, intfDict=r3intfs)
-
-        s4 = self.addSwitch('s4', dpid='00000000000000a4', cls=OSPFSwitch, protocols='OpenFlow13')
 
         # Add links to their separate networks
         self.addLink(r1, s1)
@@ -121,11 +116,13 @@ class OSPFTopo( Topo ):
         self.addLink(r2, s4)
         self.addLink(r3, s4)
 
-        # Add 1 host for testing purposes
-        h1 = self.addHost('h1', cls=OSPFHost, ip='10.0.3.1', route='10.0.3.254')
+        # Add hosts to each platform
+        h1 = self.addHost('h1', cls=OSPFHost, ip='10.0.1.1', route='10.0.1.254')
         h2 = self.addHost('h2', cls=OSPFHost, ip='10.0.2.1', route='10.0.2.254')
-        self.addLink(h1, s3)
+        h3 = self.addHost('h3', cls=OSPFHost, ip='10.0.3.1', route='10.0.3.254')
+        self.addLink(h1, s1)
         self.addLink(h2, s2)
+        self.addLink(h3, s3)
 
 
 
@@ -133,10 +130,13 @@ topos = { 'ospf' : OSPFTopo }
 
 # One controller for taking care of the OSPF network and one for the switches outside of the OSPF network
 # c1 running inside the OSPF network. Runs a simple switch.
-c0 = RemoteController(name='c0', ip='127.0.0.1', port=6653)
-c1 = RemoteController(name='c1', ip='127.0.0.1', port=6654)
+c1 = RemoteController(name='c1', ip='1.0.0.1', port=6653)
+c2 = RemoteController(name='c2', ip='127.0.0.1', port=6654)
+c3 = RemoteController(name='c3', ip='127.0.0.1', port=6655)
+c4 = RemoteController(name='c4', ip='127.0.0.1', port=6656)
+# ryu-manager --ofp-tcp-listen-port 6656 simple_switch.py
 
-cmap = {'s1': c0, 's2': c0, 's3': c0, 's4': c1}
+cmap = {'s1': c1, 's2': c2, 's3': c3, 's4': c4}
 
 if __name__ == '__main__':
     setLogLevel('debug')
@@ -144,10 +144,11 @@ if __name__ == '__main__':
 
     net = Mininet(topo=topo, controller=None)
 
-    net.addController(c0)
-    net.addController(c1)
 
     net.start()
+    net.getNodeByName('s1').cmd('ifconfig s1 inet 10.0.1.10')
+    for controller in cmap:
+        net.addController(cmap[controller])
 
     CLI(net)
 

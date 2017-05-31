@@ -4,7 +4,7 @@ from mininet.cli import CLI
 from mininet.log import setLogLevel, info, debug
 from mininet.node import Host, RemoteController
 from mininet.node import Controller, OVSController
-from mininet.node import OVSKernelSwitch
+from mininet.node import OVSSwitch
 
 QUAGGA_DIR = '/usr/lib/quagga'
 # Must exist and be owned by quagga user (quagga:quagga by default on Ubuntu)
@@ -14,6 +14,14 @@ QUAGGA_RUN_DIR = '/var/run/quagga'
 # Files must be owned by quagga:quagga
 # Files must be executable
 CONFIG_DIR = '/etc/quagga/configs'
+
+class InbandController( RemoteController ):
+    def __init__(self, *args, **kwargs):
+        RemoteController.__init__(self, *args, **kwargs)
+
+    def checkListening( self ):
+        "Overridden to do nothing."
+        return
 
 class OSPFHost(Host):
     def __init__(self, name, ip, route, *args, **kwargs):
@@ -27,12 +35,12 @@ class OSPFHost(Host):
         debug("configuring route %s" % self.route)
         self.cmd('ip route add default via %s' % self.route)
 
-class OSPFSwitch(OVSKernelSwitch):
+class OSPFSwitch(OVSSwitch):
     def __init__(self, name, *args, **kwargs):
-        OVSKernelSwitch.__init__(self, name, *args, **kwargs)
+        OVSSwitch.__init__(self, name, *args, **kwargs)
 
     def start(self, a):
-        return OVSKernelSwitch.start(self, [cmap[self.name]])
+        return OVSSwitch.start(self, [cmap[self.name]])
 
 class OSPFRouter(Host):
     def __init__(self, name, quaggaConfFile, zebraConfFile, intfDict, *args, **kwargs):
@@ -66,7 +74,7 @@ class OSPFTopo( Topo ):
     "SDN-IP tutorial topology"
 
     def build( self ):
-        s1 = self.addSwitch('s1', dpid='00000000000000a1', cls=OSPFSwitch, protocols='OpenFlow13')
+        s1 = self.addSwitch('s1', dpid='00000000000000a1', cls=OSPFSwitch, protocols='OpenFlow13', inband=True, inNamespace=True)
         s2 = self.addSwitch('s2', dpid='00000000000000a2', cls=OSPFSwitch, protocols='OpenFlow13')
         s3 = self.addSwitch('s3', dpid='00000000000000a3', cls=OSPFSwitch, protocols='OpenFlow13')
         s4 = self.addSwitch('s4', dpid='00000000000000a4', cls=OSPFSwitch, protocols='OpenFlow13')
@@ -124,16 +132,22 @@ class OSPFTopo( Topo ):
         self.addLink(h2, s2)
         self.addLink(h3, s3)
 
-
+        # Add hosts for controllers for each platform
+        h4 = self.addHost('h4', ip='10.0.1.2')
+        h5 = self.addHost('h5', ip='10.0.2.2')
+        h6 = self.addHost('h6', ip='10.0.3.2')
+        self.addLink(h4, s1)
+        self.addLink(h4, s2)
+        self.addLink(h4, s3)
 
 topos = { 'ospf' : OSPFTopo }
 
 # One controller for taking care of the OSPF network and one for the switches outside of the OSPF network
 # c1 running inside the OSPF network. Runs a simple switch.
-c1 = RemoteController(name='c1', ip='1.0.0.1', port=6653)
-c2 = RemoteController(name='c2', ip='127.0.0.1', port=6654)
-c3 = RemoteController(name='c3', ip='127.0.0.1', port=6655)
-c4 = RemoteController(name='c4', ip='127.0.0.1', port=6656)
+c1 = InbandController(name='c1', ip='10.0.1.2', port=6653)
+c2 = InbandController(name='c2', ip='127.0.0.1', port=6654)
+c3 = InbandController(name='c3', ip='127.0.0.1', port=6655)
+c4 = InbandController(name='c4', ip='127.0.0.1', port=6656)
 # ryu-manager --ofp-tcp-listen-port 6656 simple_switch.py
 
 cmap = {'s1': c1, 's2': c2, 's3': c3, 's4': c4}
@@ -144,11 +158,11 @@ if __name__ == '__main__':
 
     net = Mininet(topo=topo, controller=None)
 
+    for controller in cmap:
+        net.addController(cmap[controller])
 
     net.start()
     net.getNodeByName('s1').cmd('ifconfig s1 inet 10.0.1.10')
-    for controller in cmap:
-        net.addController(cmap[controller])
 
     CLI(net)
 

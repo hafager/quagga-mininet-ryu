@@ -25,6 +25,7 @@ class ospf_api:
 
 
         self.router = self._fetch_router_id()
+        print 'ROUTER ID: ', self.router
         self.router["Attached Routers"] = {}
 
         self.fetch_connected_routers()
@@ -32,8 +33,8 @@ class ospf_api:
         # self.test()
 
     def generate_config(self, platform_id):
-        self.OSPF_AREA = "0.0.0.%s" % paltform_id
-        self.HOST = "10.0.%s.254" % paltform_id
+        self.OSPF_AREA = "0.0.0.%s" % platform_id
+        self.HOST = "10.0.%s.254" % platform_id
         self.PORT = 2604
         self.DAEMON = "ospfd"
         self.user = "r%s" % platform_id
@@ -47,6 +48,11 @@ class ospf_api:
         #self.router_id = self._fetch_router_id()
         self.fetch_connected_routers()
         self.fetch_router_routes()
+        #print self._telnet_command(SHOW_IP_OSPF_DATA_NETWORK)
+        print self.list_attached_routers()
+
+    def telnet_update(self):
+        a = 1
 
     def list_attached_routers(self):
         temp = {}
@@ -56,13 +62,13 @@ class ospf_api:
         return self.router["Attached Routers"]
 
     def _fetch_router_id(self):
-        output = self._vtysh_command(SHOW_IP_OSPF)
+        output = self._telnet_command(SHOW_IP_OSPF)
         parsed_output = self._parse_ospf(output)
 
         return parsed_output
 
     def fetch_connected_routers(self):
-        output = self._vtysh_command(SHOW_IP_OSPF_DATA_NETWORK)
+        output = self._telnet_command(SHOW_IP_OSPF_DATA_NETWORK)
         parsed_output = self._parse_ospf_data_network(output)
 
         # Add new routers
@@ -86,7 +92,7 @@ class ospf_api:
         routers = []
         for router in self.router["Attached Routers"].keys():
             if self.router["Attached Routers"][router]["Connected"]:
-                output = self._vtysh_command(SHOW_IP_OSPF_DATABASE_ROUTER % router)
+                output = self._telnet_command(SHOW_IP_OSPF_DATABASE_ROUTER % router)
 
                 parsed_output = self._parse_ospf_route(output)
                 routers.append(parsed_output)
@@ -102,11 +108,18 @@ class ospf_api:
         tn.read_until("Password: ")
         tn.write(self.password + '\n')
 
-        tn.write(command)
+        status = tn.read_some()
+        if "Password" in status:
+            tn.close()
+            print("Didn't have the correct password")
+            return
+        tn.write(command + '\n')
+        print command
 
-        tn.read_until(command)
-        output = tn.read_all()
+        output = tn.read_until('%s>' % self.user)
+
         tn.close()
+        print "Finished telnet fetch"
         return output
 
 
@@ -153,8 +166,9 @@ class ospf_api:
         return parsed_data
 
     def _parse_ospf(self, data):
-        temp = data.split('\n')
-        parsed_data = {"Router ID": temp[0].split()[-1]}
+        temp = data.split('\r\n')
+        print temp
+        parsed_data = {"Router ID": temp[1].split()[-1]}
         return parsed_data
 
 

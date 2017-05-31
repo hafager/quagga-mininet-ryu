@@ -76,13 +76,14 @@ class MasterSwitch(app_manager.RyuApp):
 
         #self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
 
-        for i in pkt.protocols:
-            print i
-            try:
-                if "OSPF" in i.protocol_name:
-                    print i
-            except:
-                pass
+
+        # for i in pkt.protocols:
+        #     print i
+        #     try:
+        #         if "OSPF" in i.protocol_name:
+        #             print i
+        #     except:
+        #         pass
 
         #learn a mac address to avoid FLOOD next time.
         self.mac_to_port[dpid][src] = in_port
@@ -112,13 +113,13 @@ class MasterSwitch(app_manager.RyuApp):
         links_list = get_link(self.topology_api_app, None)
         links = [(link.src.dpid, link.dst.dpid, {'port': link.src.port_no}) for link in links_list]
 
-        print switches
-        print links
+        #print switches
+        #print links
 
     def _request_ospf(self):
 
         time.sleep(15)
-        ospf = ospf_api("3")
+        ospf = ospf_api("1")
 
         while True:
 

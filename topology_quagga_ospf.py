@@ -4,7 +4,7 @@ from mininet.cli import CLI
 from mininet.log import setLogLevel, info, debug
 from mininet.node import Host, RemoteController
 from mininet.node import Controller, OVSController
-from mininet.node import OVSSwitch
+from mininet.node import OVSKernelSwitch
 
 QUAGGA_DIR = '/usr/lib/quagga'
 # Must exist and be owned by quagga user (quagga:quagga by default on Ubuntu)
@@ -35,12 +35,12 @@ class OSPFHost(Host):
         debug("configuring route %s" % self.route)
         self.cmd('ip route add default via %s' % self.route)
 
-class OSPFSwitch(OVSSwitch):
+class OSPFSwitch(OVSKernelSwitch):
     def __init__(self, name, *args, **kwargs):
-        OVSSwitch.__init__(self, name, *args, **kwargs)
+        OVSKernelSwitch.__init__(self, name, *args, **kwargs)
 
     def start(self, a):
-        return OVSSwitch.start(self, [cmap[self.name]])
+        return OVSKernelSwitch.start(self, [cmap[self.name]])
 
 class OSPFRouter(Host):
     def __init__(self, name, quaggaConfFile, zebraConfFile, intfDict, *args, **kwargs):
@@ -74,7 +74,7 @@ class OSPFTopo( Topo ):
     "SDN-IP tutorial topology"
 
     def build( self ):
-        s1 = self.addSwitch('s1', dpid='00000000000000a1', cls=OSPFSwitch, protocols='OpenFlow13', inband=True, inNamespace=True)
+        s1 = self.addSwitch('s1', dpid='00000000000000a1', cls=OSPFSwitch, protocols='OpenFlow13', inband=True, datapath="user")
         s2 = self.addSwitch('s2', dpid='00000000000000a2', cls=OSPFSwitch, protocols='OpenFlow13')
         s3 = self.addSwitch('s3', dpid='00000000000000a3', cls=OSPFSwitch, protocols='OpenFlow13')
         s4 = self.addSwitch('s4', dpid='00000000000000a4', cls=OSPFSwitch, protocols='OpenFlow13')
@@ -163,6 +163,9 @@ if __name__ == '__main__':
 
     net.start()
     net.getNodeByName('s1').cmd('ifconfig s1 inet 10.0.1.10')
+    net.getNodeByName('s2').cmd('ifconfig s2 inet 10.0.2.10')
+    net.getNodeByName('s3').cmd('ifconfig s3 inet 10.0.3.10')
+    net.getNodeByName('s4').cmd('ifconfig s4 inet 10.1.100.4')
 
     CLI(net)
 
